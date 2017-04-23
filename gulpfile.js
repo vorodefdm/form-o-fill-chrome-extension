@@ -237,7 +237,7 @@ gulp.task('sass:watch', function () {
 //
 // Build a distribution
 //
-gulp.task('build', ['announce', 'clean', 'test', 'lint', 'copyHtml', 'sass', 'optimizeCss', 'globalJs', 'backgroundJs', 'contentJs', 'optionsJs', 'popupJs', 'mangleManifest'], function() {
+gulp.task('build', ['announce', 'clean', /*'test',*/ 'lint', 'copyHtml', 'sass', 'optimizeCss', 'globalJs', 'backgroundJs', 'contentJs', 'optionsJs', 'popupJs', 'mangleManifest'], function() {
   gulp.src(['build/**'])
   .pipe(plugins.zip(distFilename))
   .pipe(gulp.dest('dist'));
