@@ -2,29 +2,12 @@
 /*eslint no-unused-vars: [2, { "vars": "local"}]*/
 // This file is a big bag of mixed responsibilities.
 // Break this into parts!
-var editor = new Editor("#ruleeditor-ace");
 var noticesVisible = false;
+var ruleJson = null;
 
 I18n.loadPages(["help", "importexport", "settings", "about", "changelog", "modalimportall", "modalimportallencrypted", "modaldeletetab", "modalusagereport", "tutorials"]);
 
 ChromeBootstrap.init();
-
-// reset notices once the user starts typing
-editor.on("change", function() {
-  if (noticesVisible) {
-    $("#ruleeditor .notice").hide();
-    noticesVisible = false;
-  }
-});
-
-// Current active tab id
-var currentTabId = function() {
-  var currentTab = $("#ruleeditor .tab.current");
-  if (currentTab.length === 1) {
-    return currentTab.data("tab-id");
-  }
-  return 1;
-};
 
 // Append extracted rule to the end of the rule definitions
 // TODO: use a promise here
@@ -33,20 +16,6 @@ var appendRule = function(prettyRule, responseCallback) {
     // Create a rule from the parsed json and append to already present rules
     var rule = Rule.create(JSONF.parse(prettyRule), currentTabId(), arrayOfRules.length + 1);
     arrayOfRules.push(rule);
-
-    // Pretty print all rules
-    var formattedRules = arrayOfRules.map(function (singleRule) {
-      return singleRule.prettyPrint();
-    });
-
-    // Set editor content to formatted rules
-    editor.session().setValue(Rules.format("var rules = [ " + formattedRules.join(",") + "];"), -1);
-
-    // Prettify code a little
-    editor.editor().scrollToRow(editor.document().getLength());
-    editor.resize();
-    Utils.infoMsg(chrome.i18n.getMessage("opt_rule_added", [ (editor.document().getLength() - 1) ]));
-    responseCallback();
   });
 };
 
@@ -147,47 +116,37 @@ var updateTabStats = function() {
 // Save the rules
 var saveRules = function(tabId) {
   // Detect used libs and inject them into options
-  var libs = Libs.detectVendoredLibraries(editor.getValue());
+  var libs = Libs.detectVendoredLibraries(ruleJson);
   Libs.loadLibs(libs, "saveRules").then(function() {
-    var errors = Rules.syntaxCheck(editor);
-    if (errors.length > 0) {
-      errors.forEach(function (errorClass) {
-        if (typeof errorClass === "object") {
-          var extraLis = errorClass.extra.map(function (extra) {
-            return "<li>" + extra + "</li>";
-          });
-          $("#ruleeditor .notice." + errorClass.id + " ul").html(extraLis);
-          errorClass = errorClass.id;
-        }
-        $("#ruleeditor .notice." + errorClass).show();
-      });
-      noticesVisible = true;
-    }
-
-    if (editor.cleanUp()) {
-      Rules.save(editor.getValue(), tabId).then(function () {
+      Rules.save(ruleJson, tabId).then(function () {
         Utils.infoMsg("Rules saved");
         updateTabStats();
         // If the editor contained something that looks like a library function
         // reimport the libs in the background page
         // because they COULD have been changed
-        if (editor.getValue().indexOf("export") > -1) {
+        if (ruleJson.indexOf("export") > -1) {
           chrome.runtime.sendMessage({action: "reloadLibs"});
         }
       });
-    }
+
   });
 };
 
 // Load the rules
 var loadRules = function(tabId) {
   Storage.load(Utils.keys.rules + "-tab-" + tabId).then(function (ruleData) {
-    var ruleJson = null;
+    ruleJson = null;
     if (typeof ruleData === "undefined" || typeof ruleData.code === "undefined") {
       ruleJson = "";
     } else {
       ruleJson = ruleData.code;
     }
+
+	var source   = $("#entry-template").html();
+	var template = Handlebars.compile(source);
+	eval(ruleJson);
+	var rules__html = template({rules: rules});
+	$('#rules__list').html(rules__html);
 
     // Detect used libs and inject them into options
     var libs = Libs.detectVendoredLibraries(ruleJson);
